@@ -5,10 +5,13 @@ import androidx.core.app.ActivityCompat;
 import androidx.core.content.ContextCompat;
 
 import android.Manifest;
+import android.content.Intent;
 import android.content.pm.PackageManager;
 import android.os.Bundle;
+import android.provider.ContactsContract;
 import android.util.Log;
 import android.view.View;
+import android.widget.AdapterView;
 import android.widget.ImageButton;
 import android.widget.ListView;
 import android.widget.TextView;
@@ -16,6 +19,7 @@ import android.widget.TextView;
 import com.savita.contactbook.adapters.ContactAdapter;
 import com.savita.contactbook.controllers.ContactController;
 import com.savita.contactbook.models.Contact;
+import com.savita.contactbook.models.Phone;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -41,6 +45,11 @@ public class MainActivity extends AppCompatActivity {
         contactsListView = findViewById(R.id.contacts_list_view);
         missedPermissions = findViewById(R.id.contacts_missed_permissions);
         addBtn = findViewById(R.id.add_contact_btn);
+
+        addBtn.setOnClickListener((view) -> {
+            Intent intent = new Intent(this, ContactActivity.class);
+            startActivity(intent);
+        });
 
         checkPermissions();
     }

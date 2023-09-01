@@ -11,7 +11,14 @@ public class Contact implements Serializable {
     private String displayName;
     private List<Phone> phones = new ArrayList<>();
     private String email;
-    private byte[] photo;
+    private String photoUri;
+
+    public static final String NAME = "name";
+    public static final String MOBILE_PHONE = "mobile_phone";
+    public static final String HOME_PHONE = "home_phone";
+    public static final String WORK_PHONE = "work_phone";
+    public static final String EMAIL = "email";
+    public static final String PHOTO = "photo";
 
     public String getId() {
         return id;
@@ -41,11 +48,11 @@ public class Contact implements Serializable {
         this.email = email;
     }
 
-    public byte[] getPhoto() {
-        return photo;
+    public String getPhoto() {
+        return photoUri;
     }
 
-    public void setPhoto(byte[] photo) {
-        this.photo = photo;
+    public void setPhoto(String photoUri) {
+        this.photoUri = photoUri;
     }
 }

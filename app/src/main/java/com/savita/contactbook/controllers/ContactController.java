@@ -36,10 +36,10 @@ public class ContactController {
         return contacts;
     }
 
-    private static byte[] getPhoto(ContentResolver resolver, String contactId) {
-        byte[] photo = null;
+    private static String getPhoto(ContentResolver resolver, String contactId) {
+        String photo = null;
         String[] projection = new String[] {
-                ContactsContract.CommonDataKinds.Photo.PHOTO,
+                ContactsContract.CommonDataKinds.Photo.PHOTO_URI,
         };
 
         String selection = ContactsContract.CommonDataKinds.Photo.CONTACT_ID + " = ?";
@@ -48,9 +48,9 @@ public class ContactController {
         Cursor cursor = resolver.query(ContactsContract.Data.CONTENT_URI, projection, selection, selectionArgs, null);
 
         if(cursor.moveToFirst()) {
-            int columnIdx = cursor.getColumnIndex(ContactsContract.CommonDataKinds.Photo.PHOTO);
+            int columnIdx = cursor.getColumnIndex(ContactsContract.CommonDataKinds.Photo.PHOTO_URI);
             if(columnIdx >= 0) {
-                photo = cursor.getBlob(columnIdx);
+                photo = cursor.getString(columnIdx);
             }
         }
 
