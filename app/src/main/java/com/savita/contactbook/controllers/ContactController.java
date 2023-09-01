@@ -1,6 +1,8 @@
 package com.savita.contactbook.controllers;
 
+import android.content.ContentProviderOperation;
 import android.content.ContentResolver;
+import android.net.Uri;
 import android.provider.ContactsContract;
 
 import com.savita.contactbook.models.Contact;
@@ -8,6 +10,8 @@ import com.savita.contactbook.models.Phone;
 
 import android.database.Cursor;
 
+import java.io.ByteArrayOutputStream;
+import java.io.InputStream;
 import java.util.ArrayList;
 import java.util.List;
 
@@ -133,5 +137,95 @@ public class ContactController {
             return cursor.getInt(columnIdx);
         }
         return -1;
+    }
+
+    public static void create(ContentResolver resolver, Contact contact) {
+        ArrayList<ContentProviderOperation> ops = new ArrayList<>();
+
+        addAccountInsert(ops, null, null);
+        addContactNameInsert(ops, contact);
+        contact.getPhones().forEach(phone -> addContactPhoneInsert(ops, phone));
+        addContactEmailInsert(ops, contact);
+        addContactPhotoInsert(ops, contact, resolver);
+
+        try {
+            resolver.applyBatch(ContactsContract.AUTHORITY, ops);
+        } catch (Exception e) {
+            e.printStackTrace();
+        }
+    }
+
+    private static void addAccountInsert(List<ContentProviderOperation> ops, Object accountType, Object accountName) {
+        ops.add(ContentProviderOperation.newInsert(ContactsContract.RawContacts.CONTENT_URI)
+                .withValue(ContactsContract.RawContacts.ACCOUNT_TYPE, accountType)
+                .withValue(ContactsContract.RawContacts.ACCOUNT_NAME, accountName)
+                .build());
+    }
+
+    private static void addContactNameInsert(List<ContentProviderOperation> ops, Contact contact) {
+        if (contact.getDisplayName() != null) {
+            ops.add(ContentProviderOperation.newInsert(ContactsContract.Data.CONTENT_URI)
+                .withValueBackReference(ContactsContract.Data.RAW_CONTACT_ID, 0)
+                .withValue(ContactsContract.Data.MIMETYPE,
+                        ContactsContract.CommonDataKinds.StructuredName.CONTENT_ITEM_TYPE)
+                .withValue(
+                        ContactsContract.CommonDataKinds.StructuredName.DISPLAY_NAME,
+                        contact.getDisplayName())
+                .build());
+        }
+    }
+
+    private static void addContactPhoneInsert(List<ContentProviderOperation> ops, Phone phone) {
+        if(phone != null && phone.getNumber() != null) {
+            ops.add(ContentProviderOperation.newInsert(ContactsContract.Data.CONTENT_URI)
+                .withValueBackReference(ContactsContract.Data.RAW_CONTACT_ID, 0)
+                .withValue(ContactsContract.Data.MIMETYPE,
+                        ContactsContract.CommonDataKinds.Phone.CONTENT_ITEM_TYPE)
+                .withValue(ContactsContract.CommonDataKinds.Phone.NUMBER, phone.getNumber())
+                .withValue(ContactsContract.CommonDataKinds.Phone.TYPE, phone.getType())
+                .build());
+        }
+    }
+
+    private static void addContactEmailInsert(List<ContentProviderOperation> ops, Contact contact) {
+        if (contact.getEmail() != null) {
+            ops.add(ContentProviderOperation.newInsert(ContactsContract.Data.CONTENT_URI)
+                .withValueBackReference(ContactsContract.Data.RAW_CONTACT_ID, 0)
+                .withValue(ContactsContract.Data.MIMETYPE,
+                        ContactsContract.CommonDataKinds.Email.CONTENT_ITEM_TYPE)
+                .withValue(
+                        ContactsContract.CommonDataKinds.Email.ADDRESS,
+                        contact.getEmail())
+                .build());
+        }
+    }
+
+    private static void addContactPhotoInsert(List<ContentProviderOperation> ops, Contact contact, ContentResolver resolver) {
+        if (contact.getPhoto() != null) {
+            try {
+                InputStream iStream = resolver.openInputStream(Uri.parse(contact.getPhoto()));
+
+                ByteArrayOutputStream byteBuffer = new ByteArrayOutputStream();
+                int bufferSize = 1024;
+                byte[] buffer = new byte[bufferSize];
+
+                int length = 0;
+
+                while ((length = iStream.read(buffer)) != -1) {
+                    byteBuffer.write(buffer, 0, length);
+                }
+
+                ops.add(ContentProviderOperation
+                        .newInsert(ContactsContract.Data.CONTENT_URI)
+                        .withValueBackReference(
+                                ContactsContract.Data.RAW_CONTACT_ID, 0)
+                        .withValue(ContactsContract.Data.IS_SUPER_PRIMARY, 1)
+                        .withValue(ContactsContract.Data.MIMETYPE,
+                                ContactsContract.CommonDataKinds.Photo.CONTENT_ITEM_TYPE)
+                        .withValue(
+                                ContactsContract.CommonDataKinds.Photo.PHOTO,
+                                byteBuffer.toByteArray()).build());
+            } catch(Exception ex) {}
+        }
     }
 }

@@ -1,6 +1,8 @@
 package com.savita.contactbook.models;
 
-public class Phone {
+import java.io.Serializable;
+
+public class Phone implements Serializable {
     private String number;
     private int type;
 
