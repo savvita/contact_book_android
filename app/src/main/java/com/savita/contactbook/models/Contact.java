@@ -2,15 +2,16 @@ package com.savita.contactbook.models;
 
 import android.graphics.Bitmap;
 
+import java.io.Serializable;
 import java.util.ArrayList;
 import java.util.List;
 
-public class Contact {
+public class Contact implements Serializable {
     private String id;
     private String displayName;
     private List<Phone> phones = new ArrayList<>();
     private String email;
-    private Bitmap photo;
+    private byte[] photo;
 
     public String getId() {
         return id;
@@ -40,11 +41,11 @@ public class Contact {
         this.email = email;
     }
 
-    public Bitmap getPhoto() {
+    public byte[] getPhoto() {
         return photo;
     }
 
-    public void setPhoto(Bitmap photo) {
+    public void setPhoto(byte[] photo) {
         this.photo = photo;
     }
 }
