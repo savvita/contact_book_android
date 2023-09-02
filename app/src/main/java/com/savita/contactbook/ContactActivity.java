@@ -10,30 +10,33 @@ import android.Manifest;
 import android.content.DialogInterface;
 import android.content.Intent;
 import android.content.pm.PackageManager;
-import android.graphics.Bitmap;
 import android.net.Uri;
 import android.os.Bundle;
 import android.provider.ContactsContract;
 
 import android.provider.MediaStore;
 import android.util.Log;
-import android.view.KeyEvent;
 import android.view.View;
 import android.widget.Button;
+import android.widget.ImageButton;
 import android.widget.ImageView;
 import android.widget.Toast;
 
 import com.google.android.material.textfield.TextInputEditText;
+import com.savita.contactbook.controllers.ContactController;
 import com.savita.contactbook.controllers.MediaController;
 import com.savita.contactbook.models.Contact;
 import com.savita.contactbook.models.Phone;
 
 import java.io.File;
-import java.util.Date;
+import java.util.ArrayList;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Objects;
 import java.util.Set;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
+import java.util.stream.Collectors;
 
 public class ContactActivity extends AppCompatActivity {
     private Contact contact;
@@ -44,6 +47,7 @@ public class ContactActivity extends AppCompatActivity {
     private TextInputEditText contactWorkPhone;
     private ImageView contactPhoto;
     private Button saveBtn;
+    private ImageButton deletePhotoBtn;
 
     private final String CONTACT_KEY = "contact";
     private final String LOG_TAG = "contact_view_log";
@@ -58,6 +62,11 @@ public class ContactActivity extends AppCompatActivity {
     private final String CANCEL = "Cancel";
 
     private String capturedPhoto;
+    private String errorMessage = "";
+
+    private final Pattern VALID_EMAIL_ADDRESS_REGEX =
+            Pattern.compile("^[A-Z0-9._%+-]+@[A-Z0-9.-]+\\.[A-Z]{2,6}$", Pattern.CASE_INSENSITIVE);
+
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -71,45 +80,27 @@ public class ContactActivity extends AppCompatActivity {
         contactWorkPhone = findViewById(R.id.contact_view_work_phone);
         contactPhoto = findViewById(R.id.contact_view_photo);
         saveBtn = findViewById(R.id.save_contact_btn);
+        deletePhotoBtn = findViewById(R.id.contact_view_delete_photo_btn);
 
+        contactName.addTextChangedListener(new EditTextWatcher(contactName, (str) -> contact.setDisplayName(str)));
+        contactEmail.addTextChangedListener(new EditTextWatcher(contactEmail, (str) -> contact.setEmail(str)));
+        contactMobilePhone.addTextChangedListener(new EditTextWatcher(contactMobilePhone,
+                (str) -> setPhone(ContactsContract.CommonDataKinds.Phone.TYPE_MOBILE, str)));
+        contactHomePhone.addTextChangedListener(new EditTextWatcher(contactHomePhone,
+                (str) -> setPhone(ContactsContract.CommonDataKinds.Phone.TYPE_HOME, str)));
+        contactWorkPhone.addTextChangedListener(new EditTextWatcher(contactWorkPhone,
+                (str) -> setPhone(ContactsContract.CommonDataKinds.Phone.TYPE_WORK, str)));
 
-        contactName.setOnKeyListener((view, i, event) -> {
-            if (event.getAction() == KeyEvent.ACTION_UP) {
-                contact.setDisplayName(contactName.getText().toString());
-            }
-            return false;
-        });
-
-        contactEmail.setOnKeyListener((view, i, event) -> {
-            if (event.getAction() == KeyEvent.ACTION_UP) {
-                contact.setEmail(contactEmail.getText().toString());
-            }
-            return false;
-        });
-
-        contactMobilePhone.setOnKeyListener((view, i, event) -> {
-            if (event.getAction() == KeyEvent.ACTION_UP) {
-                setPhone(ContactsContract.CommonDataKinds.Phone.TYPE_MOBILE, contactMobilePhone.getText().toString());
-            }
-            return false;
-        });
-
-        contactHomePhone.setOnKeyListener((view, i, event) -> {
-            if (event.getAction() == KeyEvent.ACTION_UP) {
-                setPhone(ContactsContract.CommonDataKinds.Phone.TYPE_HOME, contactHomePhone.getText().toString());
-            }
-            return false;
-        }
-        );
-        contactWorkPhone.setOnKeyListener((view, i, event) -> {
-            if (event.getAction() == KeyEvent.ACTION_UP) {
-                setPhone(ContactsContract.CommonDataKinds.Phone.TYPE_WORK, contactWorkPhone.getText().toString());
-            }
-            return false;
-        });
+        deletePhotoBtn.setOnClickListener((view) -> deletePhoto());
 
         initializeContact();
         checkPermissions();
+    }
+
+    private void deletePhoto() {
+        contact.setPhoto(null);
+        contactPhoto.setImageResource(R.drawable.ic_launcher_foreground);
+        deletePhotoBtn.setVisibility(View.GONE);
     }
 
     private void setPhone(int type, String number) {
@@ -150,7 +141,7 @@ public class ContactActivity extends AppCompatActivity {
             capturedPhoto = String.valueOf(System.currentTimeMillis()) + ".jpg";
             File f = new File(android.os.Environment.getExternalStorageDirectory(), capturedPhoto);
             intent.putExtra(MediaStore.EXTRA_OUTPUT, FileProvider.getUriForFile(Objects.requireNonNull(getApplicationContext()),
-                    getPackageName() + ".provider", f));
+                    BuildConfig.APPLICATION_ID + ".provider", f));
             startActivityForResult(Intent.createChooser(intent, "Select profile picture"), IMAGE_PICK_REQUEST);
         } else if(options[i].equals(CANCEL)) {
             dialog.dismiss();
@@ -172,7 +163,7 @@ public class ContactActivity extends AppCompatActivity {
                     contact.setPhoto(imagePath);
                 }
                 else  {
-                    String imagePath = MediaController.getMedia(capturedPhoto);
+                    String imagePath = MediaController.getAbsolutePath(capturedPhoto);
                     Log.d(LOG_TAG, "Captured image path : " + imagePath);
                     if(imagePath != null) {
                         contactPhoto.setImageURI(Uri.parse(imagePath));
@@ -194,9 +185,12 @@ public class ContactActivity extends AppCompatActivity {
             saveBtn.setOnClickListener((view) ->
                     ActivityCompat.requestPermissions(this, new String[] { android.Manifest.permission.WRITE_CONTACTS }, REQUEST_PERMISSION_WRITE_CONTACTS));
             contactPhoto.setOnClickListener(null);
+            deletePhotoBtn.setVisibility(View.GONE);
         } else {
             saveBtn.setOnClickListener((view) -> saveContact());
-
+            if(contact.getPhoto() != null) {
+                deletePhotoBtn.setVisibility(View.VISIBLE);
+            }
             contactPhoto.setOnClickListener((view) -> checkPhotoPermissions());
         }
     }
@@ -228,9 +222,77 @@ public class ContactActivity extends AppCompatActivity {
     }
 
     private void saveContact() {
+        if(!validateContact()) {
+            Toast.makeText(this, errorMessage, Toast.LENGTH_LONG).show();
+            return;
+        }
 
+        if(contact.getId() == null || contact.getId().isEmpty()) {
+            if(ContactController.create(getContentResolver(), contact, getApplicationContext())) {
+                backToContactListActivity();
+            } else {
+                Toast.makeText(this, "Oops...", Toast.LENGTH_LONG).show();
+            }
+        } else {
+            if(ContactController.update(getApplicationContext(), contact)) {
+                backToContactListActivity();
+            } else {
+                Toast.makeText(this, "Oops...", Toast.LENGTH_LONG).show();
+            }
+        }
     }
 
+
+    private boolean validateContact() {
+        List<String> errors = new ArrayList<>();
+
+        if(contact == null) {
+            errors.add("Contact is null");
+        } else {
+            prepareContact();
+            if(contact.getDisplayName() == null) {
+                errors.add("Name is required");
+            }
+
+            if(contact.getEmail() != null && !validateEmail(contact.getEmail())) {
+                errors.add("Incorrect email");
+            }
+        }
+
+        if(errors.size() > 0) {
+            errorMessage = String.join("\n", errors);
+        } else {
+            errorMessage = "";
+        }
+
+        return errorMessage.isEmpty();
+    }
+
+
+    public boolean validateEmail(String emailStr) {
+        Matcher matcher = VALID_EMAIL_ADDRESS_REGEX.matcher(emailStr);
+        return matcher.matches();
+    }
+
+    private void prepareContact() {
+        contact.setDisplayName(trimString(contact.getDisplayName()));
+        contact.setEmail(trimString(contact.getEmail()));
+        contact.getPhones().forEach(phone -> phone.setNumber(trimString(phone.getNumber())));
+        contact.setPhones(contact.getPhones().stream().filter(phone -> phone.getNumber() != null).collect(Collectors.toList()));
+    }
+
+    private String trimString(String str) {
+        if(str == null) return null;
+        str = str.trim();
+        if(str.length() == 0) return null;
+        return str;
+    }
+
+    private void backToContactListActivity() {
+        Intent intent = new Intent(this, MainActivity.class);
+        intent.addFlags(Intent.FLAG_ACTIVITY_REORDER_TO_FRONT);
+        startActivity(intent);
+    }
     @Override
     public void onRequestPermissionsResult(int requestCode, String[] permissions, int[] grantResults) {
         super.onRequestPermissionsResult(requestCode, permissions, grantResults);
@@ -238,9 +300,13 @@ public class ContactActivity extends AppCompatActivity {
         if (requestCode == REQUEST_PERMISSION_WRITE_CONTACTS) {
             if (grantResults.length > 0 && grantResults[0] == PackageManager.PERMISSION_GRANTED) {
                 saveBtn.setOnClickListener((view) -> saveContact());
+                if(contact.getPhoto() != null) {
+                    deletePhotoBtn.setVisibility(View.VISIBLE);
+                }
             } else {
                 saveBtn.setOnClickListener((view) ->
                         ActivityCompat.requestPermissions(this, new String[] { android.Manifest.permission.WRITE_CONTACTS }, REQUEST_PERMISSION_WRITE_CONTACTS));
+                deletePhotoBtn.setVisibility(View.GONE);
             }
         }
 
@@ -285,20 +351,34 @@ public class ContactActivity extends AppCompatActivity {
         contact = new Contact();
         Intent intent = getIntent();
 
+        if(intent.hasExtra(Contact.ID)) {
+            contact.setId(intent.getStringExtra(Contact.ID));
+        }
+
+
         if(intent.hasExtra(Contact.NAME)) {
             contact.setDisplayName(intent.getStringExtra(Contact.NAME));
         }
 
         if(intent.hasExtra(Contact.MOBILE_PHONE)) {
-            contact.getPhones().add(new Phone(intent.getStringExtra(Contact.MOBILE_PHONE), ContactsContract.CommonDataKinds.Phone.TYPE_MOBILE));
+            contact.getPhones().add(new Phone(
+                    intent.getStringExtra(Contact.MOBILE_PHONE_ID),
+                    intent.getStringExtra(Contact.MOBILE_PHONE),
+                    ContactsContract.CommonDataKinds.Phone.TYPE_MOBILE));
         }
 
         if(intent.hasExtra(Contact.WORK_PHONE)) {
-            contact.getPhones().add(new Phone(intent.getStringExtra(Contact.WORK_PHONE), ContactsContract.CommonDataKinds.Phone.TYPE_WORK));
+            contact.getPhones().add(new Phone(
+                    intent.getStringExtra(Contact.WORK_PHONE_ID),
+                    intent.getStringExtra(Contact.WORK_PHONE),
+                    ContactsContract.CommonDataKinds.Phone.TYPE_WORK));
         }
 
         if(intent.hasExtra(Contact.HOME_PHONE)) {
-            contact.getPhones().add(new Phone(intent.getStringExtra(Contact.HOME_PHONE), ContactsContract.CommonDataKinds.Phone.TYPE_HOME));
+            contact.getPhones().add(new Phone(
+                    intent.getStringExtra(Contact.HOME_PHONE_ID),
+                    intent.getStringExtra(Contact.HOME_PHONE),
+                    ContactsContract.CommonDataKinds.Phone.TYPE_HOME));
         }
 
         if(intent.hasExtra(Contact.EMAIL)) {
@@ -319,6 +399,13 @@ public class ContactActivity extends AppCompatActivity {
             String photo = contact.getPhoto();
             if(photo != null) {
                 contactPhoto.setImageURI(Uri.parse(photo));
+                if(ContextCompat.checkSelfPermission(this, android.Manifest.permission.WRITE_CONTACTS) == PackageManager.PERMISSION_GRANTED) {
+                    deletePhotoBtn.setVisibility(View.VISIBLE);
+                } else {
+                    deletePhotoBtn.setVisibility(View.GONE);
+                }
+            } else {
+                deletePhotoBtn.setVisibility(View.GONE);
             }
             List<Phone> phones = contact.getPhones();
             phones.forEach(phone -> {

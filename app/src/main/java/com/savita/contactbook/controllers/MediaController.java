@@ -1,14 +1,20 @@
 package com.savita.contactbook.controllers;
 
+import android.content.ContentResolver;
 import android.content.Context;
 import android.database.Cursor;
-import android.graphics.Bitmap;
-import android.graphics.BitmapFactory;
 import android.net.Uri;
 import android.os.Environment;
 import android.provider.MediaStore;
 
+import androidx.core.content.FileProvider;
+
+import com.savita.contactbook.BuildConfig;
+
+import java.io.ByteArrayOutputStream;
 import java.io.File;
+import java.io.InputStream;
+import java.util.Objects;
 
 public class MediaController {
     public static String getRealPathFromURI(Context context, Uri contentUri) {
@@ -27,7 +33,7 @@ public class MediaController {
         }
     }
 
-    public static String getMedia(String filename) {
+    public static String getAbsolutePath(String filename) {
         File f = new File(Environment.getExternalStorageDirectory().toString());
         for (File temp : f.listFiles()) {
             if (temp.getName().equals(filename)) {
@@ -35,35 +41,30 @@ public class MediaController {
                 break;
             }
         }
-        try {
-//            Bitmap bitmap;
-//            BitmapFactory.Options bitmapOptions = new BitmapFactory.Options();
-            return f.getAbsolutePath();
-//            return BitmapFactory.decodeFile(f.getAbsolutePath(), bitmapOptions);
-//            viewImage.setImageBitmap(bitmap);
-//            String path = android.os.Environment
-//                    .getExternalStorageDirectory()
-//                    + File.separator
-//                    + "Phoenix" + File.separator + "default";
-//            f.delete();
-//            OutputStream outFile = null;
-//            File file = new File(path, String.valueOf(System.currentTimeMillis()) + ".jpg");
-//            try {
-//                outFile = new FileOutputStream(file);
-//                bitmap.compress(Bitmap.CompressFormat.JPEG, 85, outFile);
-//                outFile.flush();
-//                outFile.close();
-//            } catch (FileNotFoundException e) {
-//                e.printStackTrace();
-//            } catch (IOException e) {
-//                e.printStackTrace();
-//            } catch (Exception e) {
-//                e.printStackTrace();
-//            }
-        } catch (Exception e) {
-            e.printStackTrace();
-        }
+        return f.getAbsolutePath();
+    }
 
-        return null;
+    public static byte[] getByteArray(Context context, String path) {
+        File file = new File(path);
+
+        ContentResolver resolver = context.getContentResolver();
+
+        try (InputStream  iStream = resolver.openInputStream(FileProvider.getUriForFile(Objects.requireNonNull(context),
+        BuildConfig.APPLICATION_ID + ".provider", file))) {
+            ByteArrayOutputStream byteBuffer = new ByteArrayOutputStream();
+            int bufferSize = 1024;
+            byte[] buffer = new byte[bufferSize];
+
+            int length = 0;
+
+            while ((length = iStream.read(buffer)) != -1) {
+                byteBuffer.write(buffer, 0, length);
+            }
+
+            return byteBuffer.toByteArray();
+
+        } catch (Exception e) {
+            return null;
+        }
     }
 }

@@ -117,4 +117,16 @@
         app:layout_constraintEnd_toEndOf="parent"
         app:layout_constraintStart_toStartOf="parent" />
 
+    <ImageButton
+        android:id="@+id/contact_view_delete_photo_btn"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:backgroundTint="@android:color/transparent"
+        android:maxWidth="@dimen/btn_width"
+        android:maxHeight="@dimen/btn_height"
+        android:src="@android:drawable/ic_delete"
+        android:visibility="gone"
+        app:layout_constraintEnd_toEndOf="@+id/contact_view_photo"
+        app:layout_constraintTop_toTopOf="@+id/contact_view_photo" />
+
 </androidx.constraintlayout.widget.ConstraintLayout>

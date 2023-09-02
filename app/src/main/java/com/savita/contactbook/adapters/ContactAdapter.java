@@ -3,13 +3,10 @@ package com.savita.contactbook.adapters;
 import android.content.Context;
 import android.content.Intent;
 import android.provider.ContactsContract;
-import android.util.Log;
 import android.view.LayoutInflater;
 import android.view.View;
 import android.view.ViewGroup;
 import android.widget.ArrayAdapter;
-import android.widget.BaseAdapter;
-import android.widget.Button;
 import android.widget.ImageButton;
 import android.widget.TextView;
 
@@ -17,8 +14,11 @@ import androidx.constraintlayout.widget.ConstraintLayout;
 
 import com.savita.contactbook.ContactActivity;
 import com.savita.contactbook.R;
+import com.savita.contactbook.controllers.ContactController;
 import com.savita.contactbook.models.Contact;
 import com.savita.contactbook.models.Phone;
+
+import androidx.appcompat.app.AlertDialog;
 
 import java.util.List;
 
@@ -84,7 +84,7 @@ public class ContactAdapter extends ArrayAdapter<Contact> {
 
         if(isEditable) {
             viewHolder.contact_remove_btn.setVisibility(View.VISIBLE);
-            viewHolder.contact_remove_btn.setOnClickListener(x -> removeContact(contact.getId()));
+            viewHolder.contact_remove_btn.setOnClickListener(x -> removeContact(contact));
         } else {
             viewHolder.contact_remove_btn.setVisibility(View.GONE);
         }
@@ -95,6 +95,10 @@ public class ContactAdapter extends ArrayAdapter<Contact> {
     private void openContactActivity(Contact contact) {
         Intent intent = new Intent(context, ContactActivity.class);
         if(contact != null) {
+            if(contact.getId() != null) {
+                intent.putExtra(Contact.ID, contact.getId());
+            }
+
             if(contact.getDisplayName() != null) {
                 intent.putExtra(Contact.NAME, contact.getDisplayName());
             }
@@ -111,10 +115,13 @@ public class ContactAdapter extends ArrayAdapter<Contact> {
             phones.forEach(phone -> {
                 if(phone.getType() == ContactsContract.CommonDataKinds.Phone.TYPE_MOBILE) {
                     intent.putExtra(Contact.MOBILE_PHONE, phone.getNumber());
+                    intent.putExtra(Contact.MOBILE_PHONE_ID, phone.getId());
                 } else if(phone.getType() == ContactsContract.CommonDataKinds.Phone.TYPE_WORK) {
                     intent.putExtra(Contact.WORK_PHONE, phone.getNumber());
+                    intent.putExtra(Contact.WORK_PHONE_ID, phone.getId());
                 } else if(phone.getType() == ContactsContract.CommonDataKinds.Phone.TYPE_HOME) {
                     intent.putExtra(Contact.HOME_PHONE, phone.getNumber());
+                    intent.putExtra(Contact.HOME_PHONE_ID, phone.getId());
                 }
             });
         }
@@ -122,7 +129,21 @@ public class ContactAdapter extends ArrayAdapter<Contact> {
         context.startActivity(intent);
     }
 
-    private void removeContact(String id) {
+    private void removeContact(Contact contact) {
+        AlertDialog.Builder dialogBuilder = new AlertDialog.Builder(context);
+        dialogBuilder.setTitle("Delete contact");
+        dialogBuilder.setMessage("Are you sure you want to delete a contact?");
+        dialogBuilder.setPositiveButton("Yes", (dialog, which) -> {
+            ContactController.remove(context.getContentResolver(), contact);
+            if(onDataChanged != null) {
+                onDataChanged.Notify();
+            }
+            dialog.dismiss();
+        });
+
+        dialogBuilder.setNegativeButton("No", (dialog, which) -> dialog.dismiss());
+
+        dialogBuilder.show();
     }
 
     private class ViewHolder {
